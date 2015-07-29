@@ -7,6 +7,8 @@ This demo shows how Pearley can parse math expressions with the +, -, *, and / o
 To run it, you must include [tokenizer.js](https://purmou.github.io/ParserGen/tokenize.js) from my ParserGen repo to tokenize the strings.
 
 # parens.js
+**NOTE: Doesn't work yet.** Pearley doesn't work with empty rules yet. I'll implement nullables soon.
+
 This demo lets you parse a string containing balanced pairs of parentheses, meaning *n* open parentheses followed by *n* close parentheses.
 
 i.e.
