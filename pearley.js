@@ -6,7 +6,8 @@ function EarleySet () {
         for (var i = 0; i < this.length; i++) {
             if (state.rule === this.set[i].rule &&
                 state.type === this.set[i].type &&
-                state.source === this.set[i].source
+                state.source === this.set[i].source &&
+                state.next === this.set[i].next
             ) {
                 return true;
             }
