@@ -52,7 +52,7 @@ function State (obj) {
     };
 }
 
-function parse (tokens, grammar) {
+function parse (tokens, grammar, parsed) {
     var tbl = [];
     tbl[0] = new EarleySet();
     for (var g in grammar) tbl[0].pushState(grammar[g]);
@@ -105,5 +105,6 @@ function parse (tokens, grammar) {
             }
         }
     }
+    console.log(parsed);
     return tbl;
 }
