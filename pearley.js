@@ -1,21 +1,18 @@
+/* a set of states for production rules */
 function EarleySet () {
     this.set = [];
     this.length = 0;
     
+    /* check whether a given state exists in this set */
     function contains (state) {
         for (var i = 0; i < this.length; i++) {
-            if (state.rule === this.set[i].rule &&
-                state.type === this.set[i].type &&
-                state.source === this.set[i].source &&
-                state.next === this.set[i].next
-            ) {
-                return true;
-            }
+            if (this.set[i].equals(state)) return true;
         }
         return false;
     }
     var containsState = contains.bind(this);
     
+    /* push a unique state to this set */
     this.pushState = function (state) {
         if (!containsState(state)) {
             this.set.push(state);
@@ -23,11 +20,13 @@ function EarleySet () {
         }
     };
     
+    /* get the state at the given index of this set */
     this.getState = function (index) {
         return index < this.length ? this.set[index] : null;
     };
 }
 
+/* a specific state for a production rule */
 function State (obj) {
     this.type = obj.type;
     this.rule = obj.rule;
@@ -35,72 +34,105 @@ function State (obj) {
     this.source = obj.source;
     this.length = obj.length || obj.rule.length;
     
+    /* return an identical state with the marker advanced one word */
     this.advance = function () {
-        this.next++;
+        var newState = new State(this);
+        newState.next++;
+        return newState;
     };
     
+    /* return an identical state with the source property set to that specified */
     this.setSource = function (src) {
-        this.source = src;
+        var newState = new State(this);
+        newState.source = src;
+        return newState;
     };
     
+    /* check if this production rule has been completed */
     this.complete = function () {
         return this.next >= this.rule.length;
     };
     
+    /* get the next word to match */
     this.nextWord = function () {
         if (this.complete()) return null;
         return this.rule[this.next];
     };
+    
+    /* compare this state to the one given */
+    this.equals = function (state) {
+        if (this.length !== state.length) return false;
+
+        for (var i = 0; i < this.rule.length; i++) {
+            if (this.rule[i].type !== state.rule[i].type) return false;
+            if (this.rule[i].value !== state.rule[i].value) return false;
+            if (this.rule[i].terminal !== state.rule[i].terminal) return false;
+        }
+        
+        if (this.type !== state.type) return false;
+        if (this.source !== state.source) return false;
+        
+        return true;
+    };
 }
 
+/* perform the earley parse algorithm */
 function parse (tokens, grammar, parsed) {
     var tbl = [];
     tbl[0] = new EarleySet();
+
+    /* TODO: keep track of nullable elements so we can use empty rules */
+    var nullable = [];
+
+    /* start with all possible rules */
     for (var g in grammar) tbl[0].pushState(grammar[g]);
     
     for (var i = 0; i <= tokens.length; i++) {
+        /* create the next set unless we're at the end of our input tokens */
         if (i < tokens.length) tbl[i+1] = new EarleySet();
         var set = tbl[i],
             nextSet = tbl[i+1];
         
+        /* go through each state in this set */
         for (var j = 0; j < set.length; j++) {
             var curState = set.getState(j),
                 nextWord = curState.nextWord();
             
-            if (!curState.complete()) { // incomplete
+            /* production rule is incomplete */
+            if (!curState.complete()) {
                 
-                // SCANNING
-                if (nextWord.terminal && i < tokens.length) { // terminal
+                /* scan the next token if it's terminal */
+                if (nextWord.terminal && i < tokens.length) {
+                    /* if the word in the production rule is a regexp, test to see if the
+                     * next token matches. if not, check if the text is literally the same */
                     if ((nextWord.value instanceof RegExp && nextWord.value.test(tokens[i].value)) ||
                         nextWord.value == tokens[i].value
-                    ) { // token match
-                        var newState = new State(curState);
-                        newState.advance();
-                        // newState.setSource(i);
-                        nextSet.pushState(newState);
+                    ) {
+                        /* we have a match, so advance the marker and push this state to the next set */
+                        nextSet.pushState(curState.advance());
+                        /* add this token to the tokens pearley has parsed so far */
                         parsed.push(tokens[i]);
                     }
                     
-                // PREDICTING
-                } else { // non-terminal
-                    for (var g = 0; g < grammar.length; g++) { // predict what we match next
+                /* predict rules we might see next from the grammar */
+                } else {
+                    for (var g = 0; g < grammar.length; g++) {
                         if (nextWord.type == grammar[g].type) {
-                            var newState = new State(grammar[g]);
-                            newState.setSource(i);
-                            set.pushState(newState);
+                            set.pushState(grammar[g].setSource(i));
                         }
                     }
                 }
                 
-            // COMPLETING
-            } else { // completed this production
+            /* complete this production rule; move the marker beyond any word(s) with the
+             * same type as this completed rule */
+            } else {
                 for (var k = 0; k < tbl[curState.source].length; k++) {
                     var oldState = tbl[curState.source].getState(k),
                         wordToCheck = oldState.nextWord();
+                    /* if the completed rule satisfies the next word for the old state... */
                     if (!oldState.complete() && curState.type == wordToCheck.type) {
-                        var newState = new State(oldState);
-                        newState.advance();
-                        set.pushState(newState);
+                        /* then advance the old state and push it to this set to evaluate soon */
+                        set.pushState(oldState.advance());
                     }
                 }
             }
