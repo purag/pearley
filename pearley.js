@@ -26,6 +26,19 @@ function EarleySet () {
     };
 }
 
+/* a node in an abstract syntax tree with an arbitrary number of children */
+function ASTNode (obj) {
+    /* if we were given another ASTNode, copy its contents */
+    /* otherwise, proceed normally */
+    this.value = obj instanceof ASTNode ? obj.value : obj;
+    this.children = obj instanceof ASTNode ? obj.children.slice(0) : [];
+    
+    /* push a child to this node's list of children */
+    this.newChild = function (obj) {
+        this.children.push(obj instanceof ASTNode ? obj : new ASTNode(obj, 0));
+    };
+}
+
 /* a specific state for a production rule */
 function State (obj) {
     this.type = obj.type;
@@ -33,6 +46,8 @@ function State (obj) {
     this.next = obj.next;
     this.source = obj.source;
     this.length = obj.length || obj.rule.length;
+    /* clone the object's AST if it has one; if not, make a new one with this state's type */
+    this.ast = new ASTNode(obj.ast ? obj.ast : this.type);
     
     /* return an identical state with the marker advanced one word */
     this.advance = function () {
@@ -71,17 +86,9 @@ function State (obj) {
         
         if (this.type !== state.type) return false;
         if (this.source !== state.source) return false;
+        if (this.next !== state.next) return false;
         
         return true;
-    };
-}
-
-function ASTNode (obj) {
-    this.value = obj;
-    this.children = [];
-    
-    this.newChild = function (i, obj) {
-        this.children[i] = obj;
     };
 }
 
@@ -92,12 +99,6 @@ function parse (tokens, grammar) {
 
     /* TODO: keep track of nullable elements so we can use empty rules */
     var nullable = [];
-    
-    /* scanned tokens to make ASTs from */
-    var scanned = [];
-    
-    /* partial parse trees */
-    var tree = [];
 
     /* start with all possible rules */
     for (var g in grammar) tbl[0].pushState(grammar[g]);
@@ -123,10 +124,10 @@ function parse (tokens, grammar) {
                     if ((nextWord.value instanceof RegExp && nextWord.value.test(tokens[i].value)) ||
                         nextWord.value == tokens[i].value
                     ) {
+                        var newState = curState.advance();
+                        newState.ast.newChild(tokens[i]);
                         /* we have a match, so advance the marker and push this state to the next set */
-                        nextSet.pushState(curState.advance());
-                        /* add this token to the tokens pearley has parsed so far */
-                        scanned.push(tokens[i]);
+                        nextSet.pushState(newState);
                     }
                     
                 /* predict rules we might see next from the grammar */
@@ -141,38 +142,30 @@ function parse (tokens, grammar) {
             /* complete this production rule; move the marker beyond any word(s) with the
              * same type as this completed rule */
             } else {
-                var node = new ASTNode(curState.type);
-                var childNode;
-                for (var k = curState.length - 1; k >= 0; k--) {
-                    /* if the word in this rule is terminal... */
-                    if (curState.rule[k].value != null) {
-                        /* grab the next latest token scanned; it corresponds to this word */
-                        childNode = new ASTNode(scanned.pop());
-
-                    /* if it's non-terminal */
-                    } else {
-                        /* grab the next latest ASTNode we made; it corresponds to this non-terminal word */
-                        childNode = tree.pop();
-                    }
-
-                    /* add the new node to the node for this production */
-                    node.newChild(k, childNode);
-                }
-                /* push the finished production to the tree */
-                tree.push(node);
-                
                 for (var l = 0; l < tbl[curState.source].length; l++) {
                     var oldState = tbl[curState.source].getState(l),
                         wordToCheck = oldState.nextWord();
                     /* if the completed rule satisfies the next word for the old state... */
                     if (!oldState.complete() && curState.type == wordToCheck.type) {
+                        var newState = oldState.advance();
+                        newState.ast.newChild(curState.ast);
                         /* then advance the old state and push it to this set to evaluate soon */
-                        set.pushState(oldState.advance());
+                        set.pushState(newState);
                     }
                 }
             }
         }
     }
     console.log(tbl);
-    return tree;
+    var ideal = null;
+    /* find the ideal resultant parse. should be the one with the longest rule among those
+     * which are complete and originate from the beginning of the parse */
+    for (var m = tbl[i-1].length - 1; m >= 0; m--) {
+        if (tbl[i-1].getState(m).complete() && tbl[i-1].getState(m).source === 0) {
+            if (ideal === null || tbl[i-1].getState(m).length > ideal.length)
+                ideal =  tbl[i-1].getState(m);
+        }
+    }
+    /* if one wasn't found, the parse failed */
+    return ideal ? ideal : ["Parse failed."];
 }
