@@ -4,44 +4,63 @@ var parser = new ParserGen([
     ["parens", /(\(|\))/g]
 ]);
 
-var myString = "(3 + 99 - (2 - 1)) * 4";
-
-var tokens = parser.tokenize(myString);
-console.log(tokens);
-
 var grammar = [
     new State({
-        type: "expression",
+        type: "add_exp",
         rule: [
-            {type: "parens", value: "(", terminal: true},
-            {type: "expression", value: null, terminal: false},
-            {type: "parens", value: ")", terminal: true}
+            {type: "add_exp", value: null},
+            {type: "operator", value: /[+-]/},
+            {type: "mult_exp", value: null}
         ],
         next: 0,
         source: 0
     }),
     new State({
-        type: "expression",
+        type: "add_exp",
         rule: [
-            {type: "expression", value: null, terminal: false},
-            {type: "operator", value: /[-+*/]/, terminal: true},
-            {type: "expression", value: null, terminal: false}
+            {type: "mult_exp", value: null}
         ],
         next: 0,
         source: 0
     }),
     new State({
-        type: "expression",
+        type: "mult_exp",
         rule: [
-            {type: "number", value: /[0-9]+/, terminal: true}
+            {type: "mult_exp", value: null},
+            {type: "operator", value: /[*/]/},
+            {type: "factor", value: null}
+        ],
+        next: 0,
+        source: 0
+    }),
+    new State({
+        type: "mult_exp",
+        rule: [
+            {type: "factor", value: null}
+        ],
+        next: 0,
+        source: 0
+    }),
+    new State({
+        type: "factor",
+        rule: [
+            {type: "parens", value: "("},
+            {type: "add_exp", value: null},
+            {type: "parens", value: ")"}
+        ],
+        next: 0,
+        source: 0
+    }),
+    new State({
+        type: "factor",
+        rule: [
+            {type: "number", value: /[0-9]+/}
         ],
         next: 0,
         source: 0
     })
 ];
 
-var parsed = [];
-
 function doParse () {
-    console.log( parse(tokens, grammar, parsed) );
+    console.log( parse(tokens, grammar) );
 }
