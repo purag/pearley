@@ -61,6 +61,14 @@ var grammar = [
     })
 ];
 
+renderjson
+    .set_icons ("", "")
+    .set_show_to_level ("all");
+
 function doParse () {
-    console.log( parse(tokens, grammar) );
+    var string = document.querySelector("#input").value;
+    var tokens = parser.tokenize(string);
+    var tree = parse(tokens, grammar);
+    document.querySelector("#tree").innerHTML = "";
+    document.querySelector("#tree").appendChild(renderjson(tree));
 }
